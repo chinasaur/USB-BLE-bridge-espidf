@@ -1,3 +1,8 @@
+/*
+ * Code to act as USB host for a CDC ACM compatible device.
+ * Largely derived with modifications from the ESP-IDF cdc_acm_host example:
+ *   https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb/host/cdc/cdc_acm_host
+ */
 #pragma once
 
 static const int USB_HOST_PRIORITY = 20;
