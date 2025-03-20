@@ -4,8 +4,8 @@
  * CAT control a radio.
  *
  * Tested on a ESP32-S3 DevKitC 2022-v1.3 development board (with dual USB-C
- * connectors). Tested connectivity to USB CAT device with a QDX. Tested
- * connectivity from BLE client Android phone running nRF Connect app.
+ * connectors). USB CAT connection tested with a QDX.  BLE client connection
+ * tested with the nRF Connect app for Android.
  */
 
 #include "esp_log.h"

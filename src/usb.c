@@ -5,6 +5,10 @@
 
 static const char* const TAG = "BRIDGE-USB";
 
+static SemaphoreHandle_t new_device_semaphore;
+static SemaphoreHandle_t device_disconnected_semaphore;
+static cdc_acm_dev_hdl_t cdc_device = NULL;
+
 static void usb_lib_task(void* unused_arg) {
   while (true) {
     uint32_t event_flags;
@@ -25,7 +29,10 @@ static void handle_cdc_event(const cdc_acm_host_dev_event_data_t* event, void* u
     break;
   case CDC_ACM_HOST_DEVICE_DISCONNECTED:
     ESP_LOGI(TAG, "Device disconnected");
+    assert(event->data.cdc_hdl == cdc_device);
+    cdc_device = NULL;
     ESP_ERROR_CHECK(cdc_acm_host_close(event->data.cdc_hdl));
+    xSemaphoreGive(device_disconnected_semaphore);
     break;
   case CDC_ACM_HOST_SERIAL_STATE:
     ESP_LOGI(TAG, "Serial state notif 0x%04X", event->data.serial_state.val);
@@ -42,8 +49,6 @@ static bool handle_cdc_rx(const uint8_t *data, size_t data_len, void* unused_arg
   // TODO(K6PLI): Add a callback here to bridge data to BLE.
   return true;
 }
-
-static SemaphoreHandle_t new_device_semaphore;
 
 static void handle_new_device(usb_device_handle_t new_usb_device) {
   assert(new_device_semaphore);
@@ -62,7 +67,6 @@ static void new_device_task(void* unused_arg) {
   while(true) {
     assert(new_device_semaphore);
     xSemaphoreTake(new_device_semaphore, portMAX_DELAY);
-    cdc_acm_dev_hdl_t cdc_device = NULL;
     ESP_LOGI(TAG, "Opening CDC ACM device...");
     esp_err_t err = cdc_acm_host_open(
         CDC_HOST_ANY_VID, CDC_HOST_ANY_PID, 0, &cdc_device_config, &cdc_device);
@@ -70,7 +74,13 @@ static void new_device_task(void* unused_arg) {
       ESP_LOGI(TAG, "Failed to open device as CDC ACM.");
       continue;
     }
+    assert(cdc_device);
     cdc_acm_host_desc_print(cdc_device);
+
+    // Block until device is disconnected; only one device is allowed
+    // at one time.
+    assert(device_disconnected_semaphore);
+    xSemaphoreTake(device_disconnected_semaphore, portMAX_DELAY);
   }
 }
 
@@ -90,6 +100,7 @@ void setup_usb() {
   ESP_ERROR_CHECK(cdc_acm_host_install(NULL));
 
   new_device_semaphore = xSemaphoreCreateBinary();
+  device_disconnected_semaphore = xSemaphoreCreateBinary();
   ESP_ERROR_CHECK(cdc_acm_host_register_new_dev_callback(handle_new_device));
   task_created = xTaskCreate(
       new_device_task, "new_device", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);

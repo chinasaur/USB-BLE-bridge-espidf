@@ -13,7 +13,7 @@ static const char* const TAG = "BRIDGE-BLE";
 #define BLE_SVC_SPP_CHR_UUID16 (0xABF1)
 static const int CONFIG_EXAMPLE_IO_TYPE = 3;
 
-static uint8_t own_address;
+static uint8_t address_type;
 static bool connection_handles[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
 
 static uint16_t ble_spp_service_gatt_read_val_handle;
@@ -142,7 +142,7 @@ static void ble_spp_server_advertise() {
   memset(&adv_params, 0, sizeof adv_params);
   adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
   adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
-  rc = ble_gap_adv_start(own_address, NULL, BLE_HS_FOREVER,
+  rc = ble_gap_adv_start(address_type, NULL, BLE_HS_FOREVER,
                          &adv_params, ble_spp_server_gap_event, NULL);
   if (rc != 0) {
     ESP_LOGE(TAG, "Error enabling advertisement; rc=%d\n", rc);
@@ -234,15 +234,16 @@ static void ble_spp_server_on_sync() {
   assert(rc == 0);
 
   // Figure out address to use while advertising (no privacy for now).
-  rc = ble_hs_id_infer_auto(0, &own_address);
+  rc = ble_hs_id_infer_auto(0, &address_type);
   if (rc != 0) {
     ESP_LOGE(TAG, "Error determining address type; rc=%d\n", rc);
     return;
   }
 
+  ESP_LOGI(TAG, "Address type: %d", address_type);
   uint8_t addr_val[6] = {0};
-  rc = ble_hs_id_copy_addr(own_address, addr_val, NULL);
-  assert(rc);
+  rc = ble_hs_id_copy_addr(address_type, addr_val, NULL);
+  assert(rc == 0);
   ESP_LOGI(TAG, "Device Address: ");
   print_addr(addr_val);
   ESP_LOGI(TAG, "\n");
