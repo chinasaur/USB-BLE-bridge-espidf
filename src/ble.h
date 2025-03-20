@@ -9,8 +9,11 @@
  */
 #pragma once
 
-void setup_ble();
+#include <stddef.h>
+#include <stdint.h>
+
+void ble_setup();
+int ble_write_and_notify_subscribed_clients(const uint8_t* buf, size_t buf_len);
 
 // TODO(K6PLI):
-//   * Use uart_init stuff from spp_server example to make a write_to_ble call.
 //   * Add register_ble_received_data_callback.

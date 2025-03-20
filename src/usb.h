@@ -5,10 +5,22 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 static const int USB_HOST_PRIORITY = 20;
 
-void setup_usb();
+void usb_setup();
+bool usb_tx_blocking_if_connected(
+    const uint8_t* buf, size_t buf_len, uint32_t timeout_ms);
+
+
+// Temporary hacking.
+#include "usb/cdc_acm_host.h"
+cdc_acm_dev_hdl_t usb_get_device();
+
 
 // TODO(K6PLI):
-//   * Use cdc_ach_host example to make a write_to_usb call.
 //   * Add register_usb_received_data_callback.
+//   * Debug why only one CDC message gets through correctly.

@@ -14,7 +14,7 @@ static const char* const TAG = "BRIDGE-BLE";
 static const int CONFIG_EXAMPLE_IO_TYPE = 3;
 
 static uint8_t address_type;
-static bool connection_handles[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
+static bool client_notify_subscribed[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
 
 static uint16_t ble_spp_service_gatt_read_val_handle;
 static int ble_service_gatt_handler(
@@ -187,7 +187,7 @@ static int ble_spp_server_gap_event(struct ble_gap_event *event, void* unused_ar
     ESP_LOGI(TAG, "Disconnected; reason=%d ", event->disconnect.reason);
     ble_spp_server_print_conn_desc(&event->disconnect.conn);
     ESP_LOGI(TAG, "\n");
-    connection_handles[event->disconnect.conn.conn_handle] = false;
+    client_notify_subscribed[event->disconnect.conn.conn_handle] = false;
     ble_spp_server_advertise();  // Connection terminated; resume advertising.
     return 0;
 
@@ -221,7 +221,8 @@ static int ble_spp_server_gap_event(struct ble_gap_event *event, void* unused_ar
         event->subscribe.reason, event->subscribe.prev_notify,
         event->subscribe.cur_notify, event->subscribe.prev_indicate,
         event->subscribe.cur_indicate);
-    connection_handles[event->subscribe.conn_handle] = true;
+    client_notify_subscribed[
+        event->subscribe.conn_handle] = event->subscribe.cur_notify;
     return 0;
 
   default:
@@ -296,7 +297,7 @@ void ble_spp_server_host_task(void *param) {
 }
 
 void ble_store_config_init();
-void setup_ble() {
+void ble_setup() {
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
       ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -306,7 +307,7 @@ void setup_ble() {
   ESP_ERROR_CHECK(ret);
   ESP_ERROR_CHECK(nimble_port_init());
   for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++) {
-    connection_handles[i] = false;
+    client_notify_subscribed[i] = false;
   }
 
   // Initialize the NimBLE host configuration.
@@ -321,4 +322,22 @@ void setup_ble() {
   assert(ble_svc_gap_device_name_set("USB-CDC-BLE-bridge") == 0);
   ble_store_config_init();
   nimble_port_freertos_init(ble_spp_server_host_task);
+}
+
+int ble_write_and_notify_subscribed_clients(const uint8_t* buf, size_t buf_len) {
+  int clients_notified = 0;
+  for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; ++i) {
+    if (!client_notify_subscribed[i]) continue;
+    struct os_mbuf* txom = ble_hs_mbuf_from_flat(buf, buf_len);
+    const int rc = ble_gatts_notify_custom(
+        i, ble_spp_service_gatt_read_val_handle, txom);
+    if (rc == 0) {
+      ESP_LOGI(TAG, "Write and notify sent successfully; message: %.*s",
+               buf_len, buf);
+      ++clients_notified;
+    } else {
+      ESP_LOGI(TAG, "Error in write and notify; rc = %d", rc);
+    }
+  }
+  return clients_notified;
 }

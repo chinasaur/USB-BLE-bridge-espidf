@@ -1,5 +1,8 @@
 #include "usb.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "usb/usb_host.h"
 #include "usb/cdc_acm_host.h"
 
@@ -8,6 +11,11 @@ static const char* const TAG = "BRIDGE-USB";
 static SemaphoreHandle_t new_device_semaphore;
 static SemaphoreHandle_t device_disconnected_semaphore;
 static cdc_acm_dev_hdl_t cdc_device = NULL;
+
+// Temporarily give access to this for easier hacking.
+cdc_acm_dev_hdl_t usb_get_device() {
+  return cdc_device;
+}
 
 static void usb_lib_task(void* unused_arg) {
   while (true) {
@@ -77,6 +85,30 @@ static void new_device_task(void* unused_arg) {
     assert(cdc_device);
     cdc_acm_host_desc_print(cdc_device);
 
+    cdc_acm_line_coding_t line_coding;
+    ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_device, &line_coding));
+    ESP_LOGI(
+        TAG,
+        "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", "
+        "Databits: %"PRIu8"",
+        line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType,
+        line_coding.bDataBits);
+
+    ESP_LOGI(TAG, "Setting line coding.");
+    line_coding.dwDTERate = 9600;
+    line_coding.bDataBits = 8;
+    line_coding.bParityType = 0;
+    line_coding.bCharFormat = 0;
+    ESP_ERROR_CHECK(cdc_acm_host_line_coding_set(cdc_device, &line_coding));
+
+    ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_device, &line_coding));
+    ESP_LOGI(
+        TAG,
+        "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", "
+        "Databits: %"PRIu8"",
+        line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType,
+        line_coding.bDataBits);
+
     // Block until device is disconnected; only one device is allowed
     // at one time.
     assert(device_disconnected_semaphore);
@@ -84,7 +116,7 @@ static void new_device_task(void* unused_arg) {
   }
 }
 
-void setup_usb() {
+void usb_setup() {
   ESP_LOGI(TAG, "Installing USB Host");
   const usb_host_config_t host_config = {
       .skip_phy_setup = false,
@@ -93,7 +125,8 @@ void setup_usb() {
   ESP_ERROR_CHECK(usb_host_install(&host_config));
 
   BaseType_t task_created = xTaskCreate(
-      usb_lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
+      usb_lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(),
+      USB_HOST_PRIORITY, NULL);
   assert(task_created == pdTRUE);
 
   ESP_LOGI(TAG, "Installing CDC-ACM driver");
@@ -106,3 +139,12 @@ void setup_usb() {
       new_device_task, "new_device", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
   assert(task_created == pdTRUE);
 }
+
+bool usb_tx_blocking_if_connected(
+    const uint8_t* buf, size_t buf_len, uint32_t timeout_ms) {
+  if (!cdc_device) return false;
+  ESP_ERROR_CHECK(
+      cdc_acm_host_data_tx_blocking(cdc_device, buf, buf_len, timeout_ms));
+  return true;
+}
+

@@ -1,9 +1,5 @@
-# Override some defaults so BT stack is enabled
-# in this example
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=4096
 
-#
-# BT config
-#
 CONFIG_BT_ENABLED=y
 CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
 CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
