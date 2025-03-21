@@ -14,12 +14,13 @@
 
 int bridge_ble_data_to_usb(const uint8_t* data, size_t data_len) {
   usb_tx_blocking_if_connected(data, data_len, /*timeout_ms=*/1000);
-  return 0;
+  return 0;  // No error.
 }
 
-bool bridge_usb_data_to_ble(const uint8_t* data, size_t data_len, void* unused_arg) {
+bool bridge_usb_data_to_ble(
+    const uint8_t* data, size_t data_len, void* unused_arg) {
   ble_write_and_notify_subscribed_clients(data, data_len);
-  return true;
+  return true;  // Data consumed.
 }
 
 void app_main() {

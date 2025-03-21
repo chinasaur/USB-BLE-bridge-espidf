@@ -182,7 +182,6 @@ static int ble_spp_server_gap_event(struct ble_gap_event *event, void* unused_ar
       rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
       assert(rc == 0);
       ble_spp_server_print_conn_desc(&desc);
-      ESP_LOGI(TAG, "\n");
     }
     if (event->connect.status != 0 || CONFIG_BT_NIMBLE_MAX_CONNECTIONS > 1) {
       // If connection failed or multiple connection allowed, resume advertising.
@@ -193,7 +192,6 @@ static int ble_spp_server_gap_event(struct ble_gap_event *event, void* unused_ar
   case BLE_GAP_EVENT_DISCONNECT:
     ESP_LOGI(TAG, "Disconnected; reason=%d ", event->disconnect.reason);
     ble_spp_server_print_conn_desc(&event->disconnect.conn);
-    ESP_LOGI(TAG, "\n");
     client_notify_subscribed[event->disconnect.conn.conn_handle] = false;
     ble_spp_server_advertise();  // Connection terminated; resume advertising.
     return 0;
@@ -204,7 +202,6 @@ static int ble_spp_server_gap_event(struct ble_gap_event *event, void* unused_ar
     rc = ble_gap_conn_find(event->conn_update.conn_handle, &desc);
     assert(rc == 0);
     ble_spp_server_print_conn_desc(&desc);
-    ESP_LOGI(TAG, "\n");
     return 0;
 
   case BLE_GAP_EVENT_ADV_COMPLETE:

@@ -10,6 +10,7 @@ static const char* const TAG = "BRIDGE-USB";
 
 static SemaphoreHandle_t new_device_semaphore;
 static SemaphoreHandle_t device_disconnected_semaphore;
+// TODO(K6PLI): Add a mutex for cdc_device.
 static cdc_acm_dev_hdl_t cdc_device = NULL;
 static cdc_acm_data_callback_t usb_data_receive_callback = NULL;
 
@@ -71,8 +72,8 @@ static void handle_new_device(usb_device_handle_t new_usb_device) {
 static void new_device_task(void* unused_arg) {
   const cdc_acm_host_device_config_t cdc_device_config = {
       .connection_timeout_ms = 1000,
-      .out_buffer_size = 1024,
-      .in_buffer_size = 1024,
+      .out_buffer_size = 4096,
+      .in_buffer_size = 4096,
       .user_arg = NULL,
       .event_cb = handle_cdc_event,
       .data_cb = handle_cdc_rx,
