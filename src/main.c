@@ -12,27 +12,19 @@
 #include "usb.h"
 #include "ble.h"
 
+int bridge_ble_data_to_usb(const uint8_t* data, size_t data_len) {
+  usb_tx_blocking_if_connected(data, data_len, /*timeout_ms=*/1000);
+  return 0;
+}
+
+bool bridge_usb_data_to_ble(const uint8_t* data, size_t data_len, void* unused_arg) {
+  ble_write_and_notify_subscribed_clients(data, data_len);
+  return true;
+}
+
 void app_main() {
   usb_setup();
-  /*ble_setup();*/
-
-  while (true) {
-    vTaskDelay(pdMS_TO_TICKS(3000));
-
-    // This basically works, although shows up on my phone as bytes instead of
-    // text. Not sure how to write the characteristic as text from this end,
-    // although I can do it from nRF Connect on the phone side.
-    /*const uint8_t tx_str[] = "hello";*/
-    /*ble_write_and_notify_subscribed_clients(tx_str, sizeof(tx_str));*/
-
-    // This works the first time, getting two correct responses from QDX,
-    // but after that the first ID; must be corrupted because the QDX sends
-    // back "?;" followed by a single good response.
-    //
-    // TODO(phli(): Debug further. Trying to set the line coding, set line
-    // state, send break, reset the endpoint, so far nothing has helped.
-    const uint8_t tx_str[] = "ID;ID;";
-    usb_tx_blocking_if_connected(tx_str, sizeof(tx_str), 1000);
-
-  }
+  ble_setup();
+  usb_register_new_data_receive_callback(bridge_usb_data_to_ble);
+  ble_register_new_data_receive_callback(bridge_ble_data_to_usb);
 }

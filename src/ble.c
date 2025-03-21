@@ -15,6 +15,13 @@ static const int CONFIG_EXAMPLE_IO_TYPE = 3;
 
 static uint8_t address_type;
 static bool client_notify_subscribed[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
+static ble_data_receive_callback_t ble_data_receive_callback = NULL;
+
+
+void ble_register_new_data_receive_callback(
+    ble_data_receive_callback_t callback) {
+  ble_data_receive_callback = callback;
+}
 
 static uint16_t ble_spp_service_gatt_read_val_handle;
 static int ble_service_gatt_handler(
@@ -51,8 +58,8 @@ static int ble_service_gatt_handler(
         "Data received in write event; conn_handle = %x; attr_handle = %x; "
         "value = %.*s",
         conn_handle, attr_handle, ctxt->om->om_len, ctxt->om->om_data);
-    // TODO(K6PLI): Add callback here to bridge to USB.
-    return 0;
+    if (!ble_data_receive_callback) return 0;
+    return ble_data_receive_callback(ctxt->om->om_data, ctxt->om->om_len);
 
   default:
     ESP_LOGI(TAG, "Default Callback");
@@ -247,7 +254,6 @@ static void ble_spp_server_on_sync() {
   assert(rc == 0);
   ESP_LOGI(TAG, "Device Address: ");
   print_addr(addr_val);
-  ESP_LOGI(TAG, "\n");
 
   ble_spp_server_advertise();
 }
@@ -306,7 +312,7 @@ void ble_setup() {
   }
   ESP_ERROR_CHECK(ret);
   ESP_ERROR_CHECK(nimble_port_init());
-  for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++) {
+  for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; ++i) {
     client_notify_subscribed[i] = false;
   }
 

@@ -11,6 +11,11 @@ static const char* const TAG = "BRIDGE-USB";
 static SemaphoreHandle_t new_device_semaphore;
 static SemaphoreHandle_t device_disconnected_semaphore;
 static cdc_acm_dev_hdl_t cdc_device = NULL;
+static cdc_acm_data_callback_t usb_data_receive_callback = NULL;
+
+void usb_register_new_data_receive_callback(cdc_acm_data_callback_t callback) {
+  usb_data_receive_callback = callback;
+}
 
 // Temporarily give access to this for easier hacking.
 cdc_acm_dev_hdl_t usb_get_device() {
@@ -43,7 +48,7 @@ static void handle_cdc_event(const cdc_acm_host_dev_event_data_t* event, void* u
     xSemaphoreGive(device_disconnected_semaphore);
     break;
   case CDC_ACM_HOST_SERIAL_STATE:
-    ESP_LOGI(TAG, "Serial state notif 0x%04X", event->data.serial_state.val);
+    ESP_LOGI(TAG, "Serial state notify 0x%04X", event->data.serial_state.val);
     break;
   case CDC_ACM_HOST_NETWORK_CONNECTION:
   default:
@@ -52,10 +57,10 @@ static void handle_cdc_event(const cdc_acm_host_dev_event_data_t* event, void* u
   }
 }
 
-static bool handle_cdc_rx(const uint8_t *data, size_t data_len, void* unused_arg) {
+static bool handle_cdc_rx(const uint8_t *data, size_t data_len, void* arg) {
   ESP_LOGI(TAG, "Data received: %.*s", data_len, data);
-  // TODO(K6PLI): Add a callback here to bridge data to BLE.
-  return true;
+  if (!usb_data_receive_callback) return true;
+  return usb_data_receive_callback(data, data_len, arg);
 }
 
 static void handle_new_device(usb_device_handle_t new_usb_device) {
@@ -66,8 +71,8 @@ static void handle_new_device(usb_device_handle_t new_usb_device) {
 static void new_device_task(void* unused_arg) {
   const cdc_acm_host_device_config_t cdc_device_config = {
       .connection_timeout_ms = 1000,
-      .out_buffer_size = 512,
-      .in_buffer_size = 512,
+      .out_buffer_size = 1024,
+      .in_buffer_size = 1024,
       .user_arg = NULL,
       .event_cb = handle_cdc_event,
       .data_cb = handle_cdc_rx,
@@ -109,8 +114,8 @@ static void new_device_task(void* unused_arg) {
         line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType,
         line_coding.bDataBits);
 
-    // Block until device is disconnected; only one device is allowed
-    // at one time.
+    // Block until device is disconnected; only one device is allowed at one
+    // time.
     assert(device_disconnected_semaphore);
     xSemaphoreTake(device_disconnected_semaphore, portMAX_DELAY);
   }
